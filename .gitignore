@@ -1,0 +1,48 @@
+# ===== Rust / Cargo =====
+/target/
+**/*.rs.bk
+
+# Cargo.lock
+# - Libraries: usually ignore (let downstream users resolve)
+# - Binaries / apps: usually commit
+Cargo.lock
+
+# ===== IDEs / Editors =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+
+# ===== macOS =====
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ===== Linux =====
+*~
+.nfs*
+
+# ===== Logs / temp =====
+*.log
+tmp/
+temp/
+.cache/
+
+# ===== Python (if you have glue scripts) =====
+__pycache__/
+*.py[cod]
+.venv/
+env/
+
+# ===== Build artifacts from misc tools =====
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ===== Coverage / profiling =====
+coverage/
+*.profraw
+*.profdata

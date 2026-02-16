@@ -1,0 +1,108 @@
+[package]
+name = "unifiedlab"
+version = "0.10.0"
+edition = "2021"
+authors = ["UnifiedLab Team"]
+description = "HPC Active Learning Orchestrator with Visual DSL"
+
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/<YOUR_GH>/unifiedlab"
+homepage = "https://github.com/<YOUR_GH>/unifiedlab"
+documentation = "https://docs.rs/unifiedlab"
+keywords = ["hpc", "workflow", "orchestration", "active-learning", "tui"]
+categories = ["command-line-utilities", "science", "development-tools"]
+
+# Optional but recommended: define MSRV explicitly
+rust-version = "1.75"
+
+# If you have lots of non-crate stuff, consider:
+# include = ["src/**", "Cargo.toml", "README.md", "LICENSE-*", "scripts/**", "docs/**"]
+# exclude = ["scratch/**", "inbox/**", "checkpoint.db", "events.log", "**/*.drawio", ".github/**"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = 3
+
+
+# ==========================================
+# DEPENDENCIES
+# ==========================================
+[dependencies]
+
+# --- Async & Runtime ---
+tokio = { version = "1.48", features = ["full"] }
+async-trait = "0.1"
+anyhow = "1.0"
+thiserror = "1.0"
+hex = "0.4"
+
+# --- Data, Config & Serialization ---
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"                           # Canonical YAML DSL parsing/emit
+bincode = "1.3"                               # Used for EventLog container                              # Used for EventLog container
+serde_yaml = "0.9"
+uuid = { version = "1.4", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive"] }
+# rand = "0.9"                                # Unused (Used uuid v4 for randomness)
+# postcard = { version = "1.0", features = ["use-std"] } # Unused (Using bincode/json)
+
+# --- Database ---
+rusqlite = { version = "0.38", features = ["bundled"] }
+
+# --- System, Monitoring & Filesystem ---
+sysinfo = "0.37.2"
+hostname = "0.4"
+num_cpus = "1.17"
+# fs2 = "0.4"           # Unused (Standard File I/O used currently)
+# fs_extra = "1.3"      # Unused (Standard std::fs used)
+
+# --- TUI & Logging ---
+ratatui = "0.30"
+crossterm = "0.29"
+log = "0.4"
+env_logger = "0.11"
+
+# --- Graph & DSL (Phase 5) ---
+petgraph = "0.8.3"    # Directed Acyclic Graph logic
+sha2 = "0.10"         # Merkle/Content Hashing
+quick-xml = { version = "0.31", features = ["serialize"] } # For .drawio parsing
+
+# --- Draw.io Decoding (Compression/Encoding) ---
+base64 = "0.21"
+urlencoding = "2.1"
+flate2 = "1.0"        # For inflating compressed Draw.io streams
+
+# --- Integrity ---
+crc32fast = "1.4"     # For EventLog checksums
+
+
+kdtree = "0.8"
+
+##### TO POTENTIALLY IMPLEMENT #####
+# --- Wire Protocol (Unused in File-Based Transport) ---
+# bytes = "1.7"
+# tokio-util = { version = "0.7", features = ["codec"] }
+
+# --- Analytics & Archiving (Unused in Rust Core) ---
+# csv = "1.4"
+# tar = "0.4"
+
+# --- Python Interop (Unused - We use subprocess/pipes) ---
+# pyo3 = { version = "0.27", features = ["auto-initialize"] }
+# numpy = "0.27"
+
+# ==========================================
+# EXPORTS
+# ==========================================
+[lib]
+name = "unifiedlab"
+path = "src/lib.rs"
+
+[[bin]]
+name = "unifiedlab"
+path = "src/main.rs"

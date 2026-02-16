@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="Electron" modified="2026-01-20T12:00:00.000Z" agent="UnifiedLab" version="21.0.0" type="device">
+  <diagram id="MasterFlow" name="ActiveLearningLoop">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- 
+           NODE: THE BRAIN
+           - ulab_type="Generator"
+           - tags="brain" (Crucial for scheduling)
+           - <mxData as="params"><![CDATA[ ... ]]></mxData>
+        -->
+        <object ulab_type="Generator" 
+                script="scripts/active_learning_shim.py" 
+                label="Genesis Brain"
+                tags="brain"
+                cores="1"
+                id="agent_01">
+            
+            <mxCell style="ellipse;shape=doubleEllipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+                <mxGeometry x="320" y="120" width="180" height="100" as="geometry" />
+            </mxCell>
+            
+            <!-- CDATA Configuration -->
+            <mxData as="params">
+              <![CDATA[
+              {
+                "task": "SUGGEST",
+                "workload_type": "autoemulate",
+                "gen_counter": 0,
+                "gen_limit": 10,
+                "batch_size": 8,
+                "random_seed": 42,
+                "bloom_resolution": 16,
+                "bloom_strictness": 0.6,
+                "physics_template": {
+                    "script_path": "scripts/active_learning_shim.py",
+                    "runtime": { "mode": "shell", "spec": { "interpreter": "python3" } },
+                    "params": { 
+                        "task": "CALCULATE",
+                        "timeout": 30
+                    },
+                    "resources": {
+                        "nodes": 1,
+                        "cores": 1,
+                        "time_limit_min": 5,
+                        "required_tags": ["muscle"]
+                    }
+                }
+              }
+              ]]>
+            </mxData>
+        </object>
+
+        <!-- Visual Annotations -->
+        <mxCell id="note_1" value="Recursive Loop" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;align=left;" vertex="1" parent="1">
+            <mxGeometry x="540" y="120" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow_1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;entryX=0;entryY=0.5;dashed=1;" edge="1" parent="1" source="agent_01" target="note_1">
+            <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="phys_rep" value="Physics" style="rounded=1;dashed=1;fillColor=#d5e8d4;" vertex="1" parent="1">
+            <mxGeometry x="350" y="280" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="agent_01" target="phys_rep">
+            <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Mock GULP
+echo "[MOCK-GULP] Started on $(hostname)" >&2
+echo "[MOCK-GULP] OMP_NUM_THREADS=$OMP_NUM_THREADS" >&2
+sleep 0.5
+echo "[MOCK-GULP] Done" >&2
+# Output fake energy for parsing
+echo "Total lattice energy = -123.45 eV"
+exit 0

@@ -1,0 +1,11 @@
+[book]
+title = "UnifiedLab"
+authors = ["Gokay Avci"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/<YOUR_GH>/unifiedlab"
+edit-url-template = "https://github.com/<YOUR_GH>/unifiedlab/edit/main/docs/{path}"

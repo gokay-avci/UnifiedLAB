@@ -1,0 +1,10 @@
+#!/bin/bash
+# Mock VASP
+echo "[MOCK-VASP] Started Rank..." >&2
+# Check if SLURM variables leaked (Should be empty if scrubbed)
+if [ ! -z "$SLURM_JOBID" ]; then
+    echo "[MOCK-VASP] WARNING: SLURM_JOBID leaked into inner sandbox!" >&2
+fi
+sleep 0.5
+echo "  free energy    TOTEN  =       -12.345678 eV"
+exit 0
