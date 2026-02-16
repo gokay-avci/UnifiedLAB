@@ -3,32 +3,37 @@
 // =============================================================================
 // UNIFIEDLAB: SCENARIO GENERATOR (v7.0 - ULTIMATE TEST SUITE)
 // =============================================================================
-//
-// Generates complex DAG topologies programmatically to stress-test:
-// 1. Dependency Resolution (Chains).
-// 2. Concurrency/Throttling (Fan-Out).
-// 3. Driver Isolation (Mixed Engines).
-// 4. Resource Bin-Packing (Variable Core/GPU reqs).
-//  TODO
-//  The graph functionality is not properly used, still on decision progress in how to best implement the DSL structure
 
 use crate::core::{Atom, Engine, Job, JobConfig, Lattice, ResourceReq, Structure};
 use crate::workflow::{NodeType, WorkflowEngine};
 use anyhow::{anyhow, Result};
 use petgraph::graph::NodeIndex;
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
 use std::collections::HashMap;
+use std::fs;
 
 pub struct DrawIoLoader {
     pub graph: WorkflowEngine,
 }
 
 impl DrawIoLoader {
-    pub fn load_from_file(scenario_sig: &str) -> Result<Self> {
+    pub fn load_from_file(path_or_sig: &str) -> Result<Self> {
+        // 1. Try to read as actual file
+        if let Ok(content) = fs::read_to_string(path_or_sig) {
+            // Check for uncompressed XML
+            if content.trim().starts_with("<mxfile") {
+                return Self::parse_xml(&content);
+            }
+            // TODO: Add support for compressed Draw.io files (inflate+base64)
+        }
+
+        // 2. Fallback: Scenario Generator (Legacy/Testing)
         let mut engine = WorkflowEngine::new();
-        let sig = std::path::Path::new(scenario_sig)
+        let sig = std::path::Path::new(path_or_sig)
             .file_stem()
             .and_then(|s| s.to_str())
-            .unwrap_or(scenario_sig);
+            .unwrap_or(path_or_sig);
 
         log::info!("🧪 Generating Scenario: '{}'", sig);
 
@@ -67,6 +72,126 @@ impl DrawIoLoader {
             }
         }
 
+        Ok(Self { graph: engine })
+    }
+
+    fn parse_xml(content: &str) -> Result<Self> {
+        let mut engine = WorkflowEngine::new();
+        let mut reader = Reader::from_str(content);
+        reader.trim_text(true);
+
+        let mut buf = Vec::new();
+
+        struct ParsedNode {
+            #[allow(dead_code)]
+            id: String,
+            label: String,
+            #[allow(dead_code)]
+            shape: String,
+        }
+
+        struct ParsedEdge {
+            source: String,
+            target: String,
+        }
+
+        let mut nodes: HashMap<String, ParsedNode> = HashMap::new();
+        let mut edges: Vec<ParsedEdge> = Vec::new();
+        let mut node_indices: HashMap<String, NodeIndex> = HashMap::new();
+
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Empty(e)) | Ok(Event::Start(e)) => {
+                    if e.name().as_ref() == b"mxCell" {
+                        let mut id = String::new();
+                        let mut value = String::new();
+                        let mut style = String::new();
+                        let mut vertex = false;
+                        let mut edge = false;
+                        let mut source = String::new();
+                        let mut target = String::new();
+
+                        for attr in e.attributes() {
+                            let attr = attr?;
+                            match attr.key.as_ref() {
+                                b"id" => id = String::from_utf8_lossy(&attr.value).to_string(),
+                                b"value" => {
+                                    value = String::from_utf8_lossy(&attr.value).to_string()
+                                }
+                                b"style" => {
+                                    style = String::from_utf8_lossy(&attr.value).to_string()
+                                }
+                                b"vertex" => vertex = attr.value.as_ref() == b"1",
+                                b"edge" => edge = attr.value.as_ref() == b"1",
+                                b"source" => {
+                                    source = String::from_utf8_lossy(&attr.value).to_string()
+                                }
+                                b"target" => {
+                                    target = String::from_utf8_lossy(&attr.value).to_string()
+                                }
+                                _ => (),
+                            }
+                        }
+
+                        if vertex {
+                            nodes.insert(
+                                id.clone(),
+                                ParsedNode {
+                                    id,
+                                    label: value,
+                                    shape: style,
+                                },
+                            );
+                        } else if edge {
+                            if !source.is_empty() && !target.is_empty() {
+                                edges.push(ParsedEdge { source, target });
+                            }
+                        }
+                    }
+                }
+                Ok(Event::Eof) => break,
+                Err(e) => return Err(anyhow!("XML Error: {}", e)),
+                _ => (),
+            }
+            buf.clear();
+        }
+
+        // Add Nodes to Engine
+        for (id, node) in &nodes {
+            let job_name = if node.label.is_empty() {
+                format!("Job_{}", id)
+            } else {
+                node.label.clone()
+            };
+            // Infer engine from label or default
+            let engine_type = if job_name.to_lowercase().contains("janus") {
+                get_engine("janus")
+            } else {
+                get_engine("agent") // Default
+            };
+
+            let job = make_job(&job_name, engine_type, 1, 0);
+            let idx = engine.add_smart_node(job, NodeType::Compute, vec![], 50, true)?;
+            node_indices.insert(id.clone(), idx);
+        }
+
+        // Add Edges
+        for edge in &edges {
+            if let (Some(&src), Some(&dst)) = (
+                node_indices.get(&edge.source),
+                node_indices.get(&edge.target),
+            ) {
+                engine
+                    .graph
+                    .add_edge(src, dst, crate::workflow::EdgeType::HardDependency);
+            }
+        }
+
+        log::info!(
+            "📂 Parsed Draw.io XML: {} nodes, {} edges",
+            nodes.len(),
+            edges.len()
+        );
         Ok(Self { graph: engine })
     }
 }

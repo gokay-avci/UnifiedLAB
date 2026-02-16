@@ -1,0 +1,22 @@
+[project]
+name = "unifiedlab-drivers"
+version = "0.1.0"
+description = "Python drivers for UnifiedLab"
+authors = [{name = "UnifiedLab Team"}]
+dependencies = [
+    "numpy>=1.20",
+]
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["unifiedlab_drivers"]
