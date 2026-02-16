@@ -168,7 +168,9 @@ pub enum TypeSpec {
     Structure,
     Json,
     /// A list/array of another type.
-    Array { of: Box<TypeSpec> },
+    Array {
+        of: Box<TypeSpec>,
+    },
 }
 
 /// A workflow node.
@@ -337,8 +339,7 @@ pub struct ExpandedWorkflow {
 /// This does **not** perform macro expansion; call [`expand_macros`] after.
 pub fn load_yaml(path: impl AsRef<Path>) -> Result<WorkflowSpec, DslError> {
     let path = path.as_ref();
-    let raw =
-        fs::read_to_string(path).map_err(|e| DslError::io(e, path.display().to_string()))?;
+    let raw = fs::read_to_string(path).map_err(|e| DslError::io(e, path.display().to_string()))?;
 
     let spec: WorkflowSpec = serde_yaml::from_str(&raw).map_err(DslError::parse)?;
 
@@ -359,7 +360,9 @@ pub fn validate(spec: &WorkflowSpec) -> Result<(), DslError> {
         return Err(DslError::validation("metadata.name must not be empty"));
     }
     if spec.nodes.is_empty() {
-        return Err(DslError::validation("workflow must contain at least one node"));
+        return Err(DslError::validation(
+            "workflow must contain at least one node",
+        ));
     }
 
     // Node ID uniqueness.
@@ -369,7 +372,10 @@ pub fn validate(spec: &WorkflowSpec) -> Result<(), DslError> {
             return Err(DslError::validation("node.id must not be empty"));
         }
         if !ids.insert(n.id.clone()) {
-            return Err(DslError::validation(format!("duplicate node id: '{}'", n.id)));
+            return Err(DslError::validation(format!(
+                "duplicate node id: '{}'",
+                n.id
+            )));
         }
     }
 
@@ -439,11 +445,7 @@ pub fn expand_macros(spec: &WorkflowSpec) -> Result<ExpandedWorkflow, DslError> 
     for m in &spec.macros {
         match m.macro_type {
             MacroKind::Chain => {
-                let len = m
-                    .params
-                    .get("length")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(1) as usize;
+                let len = m.params.get("length").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
 
                 let engine = m
                     .params
@@ -492,11 +494,7 @@ pub fn expand_macros(spec: &WorkflowSpec) -> Result<ExpandedWorkflow, DslError> 
                 macro_map.insert(m.id.clone(), created);
             }
             MacroKind::Fanout => {
-                let width = m
-                    .params
-                    .get("width")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(1) as usize;
+                let width = m.params.get("width").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
                 let engine = m
                     .params
                     .get("engine")
@@ -545,7 +543,10 @@ pub fn expand_macros(spec: &WorkflowSpec) -> Result<ExpandedWorkflow, DslError> 
     }
 
     validate(&out)?;
-    Ok(ExpandedWorkflow { spec: out, macro_map })
+    Ok(ExpandedWorkflow {
+        spec: out,
+        macro_map,
+    })
 }
 
 fn parse_engine(s: &str) -> EngineSpec {

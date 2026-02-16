@@ -7,11 +7,28 @@
 use crate::core::{Atom, Engine, Job, JobConfig, Lattice, ResourceReq, Structure};
 use crate::workflow::{NodeType, WorkflowEngine};
 use anyhow::{anyhow, Result};
+use base64::{engine::general_purpose, Engine as _};
+use flate2::read::DeflateDecoder;
 use petgraph::graph::NodeIndex;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use std::collections::HashMap;
 use std::fs;
+use std::io::Read;
+
+// Internal parsing structures
+struct ParsedNode {
+    #[allow(dead_code)]
+    id: String,
+    label: String,
+    #[allow(dead_code)]
+    shape: String,
+}
+
+struct ParsedEdge {
+    source: String,
+    target: String,
+}
 
 pub struct DrawIoLoader {
     pub graph: WorkflowEngine,
@@ -21,11 +38,10 @@ impl DrawIoLoader {
     pub fn load_from_file(path_or_sig: &str) -> Result<Self> {
         // 1. Try to read as actual file
         if let Ok(content) = fs::read_to_string(path_or_sig) {
-            // Check for uncompressed XML
+            // Check for uncompressed XML or compressed XML (both start with <mxfile usually)
             if content.trim().starts_with("<mxfile") {
                 return Self::parse_xml(&content);
             }
-            // TODO: Add support for compressed Draw.io files (inflate+base64)
         }
 
         // 2. Fallback: Scenario Generator (Legacy/Testing)
@@ -77,84 +93,13 @@ impl DrawIoLoader {
 
     fn parse_xml(content: &str) -> Result<Self> {
         let mut engine = WorkflowEngine::new();
-        let mut reader = Reader::from_str(content);
-        reader.trim_text(true);
-
-        let mut buf = Vec::new();
-
-        struct ParsedNode {
-            #[allow(dead_code)]
-            id: String,
-            label: String,
-            #[allow(dead_code)]
-            shape: String,
-        }
-
-        struct ParsedEdge {
-            source: String,
-            target: String,
-        }
-
         let mut nodes: HashMap<String, ParsedNode> = HashMap::new();
         let mut edges: Vec<ParsedEdge> = Vec::new();
+
+        // Parse the provided content
+        Self::parse_graph_content(content, &mut nodes, &mut edges)?;
+
         let mut node_indices: HashMap<String, NodeIndex> = HashMap::new();
-
-        loop {
-            match reader.read_event_into(&mut buf) {
-                Ok(Event::Empty(e)) | Ok(Event::Start(e)) => {
-                    if e.name().as_ref() == b"mxCell" {
-                        let mut id = String::new();
-                        let mut value = String::new();
-                        let mut style = String::new();
-                        let mut vertex = false;
-                        let mut edge = false;
-                        let mut source = String::new();
-                        let mut target = String::new();
-
-                        for attr in e.attributes() {
-                            let attr = attr?;
-                            match attr.key.as_ref() {
-                                b"id" => id = String::from_utf8_lossy(&attr.value).to_string(),
-                                b"value" => {
-                                    value = String::from_utf8_lossy(&attr.value).to_string()
-                                }
-                                b"style" => {
-                                    style = String::from_utf8_lossy(&attr.value).to_string()
-                                }
-                                b"vertex" => vertex = attr.value.as_ref() == b"1",
-                                b"edge" => edge = attr.value.as_ref() == b"1",
-                                b"source" => {
-                                    source = String::from_utf8_lossy(&attr.value).to_string()
-                                }
-                                b"target" => {
-                                    target = String::from_utf8_lossy(&attr.value).to_string()
-                                }
-                                _ => (),
-                            }
-                        }
-
-                        if vertex {
-                            nodes.insert(
-                                id.clone(),
-                                ParsedNode {
-                                    id,
-                                    label: value,
-                                    shape: style,
-                                },
-                            );
-                        } else if edge {
-                            if !source.is_empty() && !target.is_empty() {
-                                edges.push(ParsedEdge { source, target });
-                            }
-                        }
-                    }
-                }
-                Ok(Event::Eof) => break,
-                Err(e) => return Err(anyhow!("XML Error: {}", e)),
-                _ => (),
-            }
-            buf.clear();
-        }
 
         // Add Nodes to Engine
         for (id, node) in &nodes {
@@ -193,6 +138,117 @@ impl DrawIoLoader {
             edges.len()
         );
         Ok(Self { graph: engine })
+    }
+
+    fn parse_graph_content(
+        content: &str,
+        nodes: &mut HashMap<String, ParsedNode>,
+        edges: &mut Vec<ParsedEdge>,
+    ) -> Result<()> {
+        let mut reader = Reader::from_str(content);
+        reader.trim_text(true);
+        let mut buf = Vec::new();
+        let mut in_diagram = false;
+
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(e)) => {
+                    let name = e.name();
+                    if name.as_ref() == b"diagram" {
+                        in_diagram = true;
+                    } else if name.as_ref() == b"mxCell" {
+                        Self::parse_cell_attributes(e.attributes(), nodes, edges)?;
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    if e.name().as_ref() == b"mxCell" {
+                        Self::parse_cell_attributes(e.attributes(), nodes, edges)?;
+                    }
+                }
+                Ok(Event::Text(e)) => {
+                    if in_diagram {
+                        let text = e.unescape()?;
+                        if !text.trim().is_empty() {
+                            // Try to decode compressed diagram data
+                            if let Ok(decoded_xml) = Self::decode_diagram_data(&text) {
+                                // Recursively parse the decoded XML
+                                Self::parse_graph_content(&decoded_xml, nodes, edges)?;
+                            }
+                        }
+                    }
+                }
+                Ok(Event::End(e)) => {
+                    if e.name().as_ref() == b"diagram" {
+                        in_diagram = false;
+                    }
+                }
+                Ok(Event::Eof) => break,
+                Err(e) => return Err(anyhow!("XML Error: {}", e)),
+                _ => (),
+            }
+            buf.clear();
+        }
+        Ok(())
+    }
+
+    fn parse_cell_attributes(
+        attributes: quick_xml::events::attributes::Attributes,
+        nodes: &mut HashMap<String, ParsedNode>,
+        edges: &mut Vec<ParsedEdge>,
+    ) -> Result<()> {
+        let mut id = String::new();
+        let mut value = String::new();
+        let mut style = String::new();
+        let mut vertex = false;
+        let mut edge = false;
+        let mut source = String::new();
+        let mut target = String::new();
+
+        for attr in attributes {
+            let attr = attr?;
+            match attr.key.as_ref() {
+                b"id" => id = String::from_utf8_lossy(&attr.value).to_string(),
+                b"value" => value = String::from_utf8_lossy(&attr.value).to_string(),
+                b"style" => style = String::from_utf8_lossy(&attr.value).to_string(),
+                b"vertex" => vertex = attr.value.as_ref() == b"1",
+                b"edge" => edge = attr.value.as_ref() == b"1",
+                b"source" => source = String::from_utf8_lossy(&attr.value).to_string(),
+                b"target" => target = String::from_utf8_lossy(&attr.value).to_string(),
+                _ => (),
+            }
+        }
+
+        if vertex {
+            nodes.insert(
+                id.clone(),
+                ParsedNode {
+                    id,
+                    label: value,
+                    shape: style,
+                },
+            );
+        } else if edge {
+            if !source.is_empty() && !target.is_empty() {
+                edges.push(ParsedEdge { source, target });
+            }
+        }
+        Ok(())
+    }
+
+    fn decode_diagram_data(data: &str) -> Result<String> {
+        // 1. Base64 Decode
+        let compressed = general_purpose::STANDARD.decode(data.trim())?;
+
+        // 2. Inflate (Raw Deflate)
+        let mut decoder = DeflateDecoder::new(&compressed[..]);
+        let mut s = String::new();
+        decoder.read_to_string(&mut s)?;
+
+        // 3. URL Decode
+        // Draw.io often URL-encodes the XML before compression
+        let decoded = urlencoding::decode(&s)?;
+
+        Ok(decoded.into_owned())
     }
 }
 
