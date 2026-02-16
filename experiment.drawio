@@ -1,0 +1,19 @@
+<mxfile>
+  <diagram name="Page-1">
+    <mxGraphModel>
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" value="Job A" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="80" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="Job B" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+           <mxGeometry x="100" y="200" width="80" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="4" edge="1" parent="1" source="2" target="3">
+           <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
